@@ -1,11 +1,12 @@
 {
   "expo": {
-    "name": "af-mock-app",
+    "name": "Northstar Mock Store",
     "slug": "af-mock-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "northstar",
     "ios": {
       "supportsTablet": true
     },
