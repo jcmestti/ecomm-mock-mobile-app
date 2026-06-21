@@ -32,4 +32,26 @@ const unsubscribe = analytics.subscribe(async (event) => {
   // Map and forward event to the SDK here.
 });
 ```
+
+## AppsFlyer
+
+The native AppsFlyer SDK is initialized in `src/analytics/appsFlyer.ts` with debug logging enabled. SDK initialization automatically records the install/launch; the app does not send a duplicate custom install event.
+
+Copy `.env.example` to `.env` and replace the placeholder AppsFlyer values:
+
+```bash
+EXPO_PUBLIC_APPSFLYER_DEV_KEY=your_appsflyer_dev_key
+EXPO_PUBLIC_APPSFLYER_IOS_APP_ID=1234567890
+```
+
+On iOS, initialization waits up to 10 seconds for ATT and the app calls Apple's authorization prompt through `requestTrackingPermissionsAsync`. Ecommerce events are forwarded from the shared data layer to AppsFlyer.
+
+All integration actions use structured `[AppsFlyer]` console logs. These include listener registration, native SDK version, initialization options and result, ATT request and status, explicit SDK start, install/conversion callbacks, data-layer mapping decisions, and in-app event request/success/failure states. Credentials are masked in logs. Native AppsFlyer debug logging is also enabled with `isDebug: true`.
+
+AppsFlyer contains native code and is not available in Expo Go. Build a development client after changing native configuration:
+
+```bash
+npx expo run:android
+npx expo run:ios
+```
 # ecomm-mock-mobile-app

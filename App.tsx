@@ -1,10 +1,12 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { CartProvider, useCart } from './src/cart/CartContext';
+import { startAppsFlyerIntegration } from './src/analytics/appsFlyer';
 import { palette } from './src/constants/theme';
 import { CartScreen } from './src/screens/CartScreen';
 import { CheckoutScreen } from './src/screens/CheckoutScreen';
@@ -60,6 +62,12 @@ function AppNavigator() {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Starts the AppsFlyer lifecycle logger, install/session measurement, ATT flow,
+    // and ecommerce data-layer bridge once for the lifetime of the application.
+    startAppsFlyerIntegration();
+  }, []);
+
   return (
     <SafeAreaProvider>
       <CartProvider>
