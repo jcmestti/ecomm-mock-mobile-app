@@ -1,8 +1,9 @@
 import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 import { AppState, AppStateStatus, Platform } from 'react-native';
-import appsFlyer, { ConversionData } from 'react-native-appsflyer';
+import appsFlyer, { ConversionData, UnifiedDeepLinkData } from 'react-native-appsflyer';
 
 import { AnalyticsEvent, EcommerceItem, analytics } from './dataLayer';
+import { discountFromDeepLinkSub1, OneLinkPayload, productIdFromDeepLinkValue } from './oneLink';
 
 const APPSFLYER_DEV_KEY = process.env.EXPO_PUBLIC_APPSFLYER_DEV_KEY;
 const APPSFLYER_IOS_APP_ID = process.env.EXPO_PUBLIC_APPSFLYER_IOS_APP_ID ?? '1234567890';
@@ -30,6 +31,8 @@ let unsubscribeFromDataLayer: (() => void) | undefined;
 let removeInstallListener: (() => void) | undefined;
 let removeInstallFailureListener: (() => void) | undefined;
 let removeAppStateListener: (() => void) | undefined;
+let removeDeepLinkListener: (() => void) | undefined;
+let onOneLinkResolved: ((payload: OneLinkPayload) => void) | undefined;
 
 // All integration messages use one structured format so native logs can be filtered
 // by "[AppsFlyer]" and correlated using the ISO timestamp and action fields.
@@ -58,6 +61,23 @@ function maskCredential(value: string) {
 
 function getItems(event: AnalyticsEvent) {
   return Array.isArray(event.items) ? event.items as EcommerceItem[] : [];
+}
+
+function handleOneLinkData(data: Record<string, unknown>, isDeferred: boolean, source: 'unified_deep_link' | 'conversion_data') {
+  const productId = productIdFromDeepLinkValue(data.deep_link_value);
+  const discount = discountFromDeepLinkSub1(data.deep_link_sub1);
+
+  console.info('[OneLink] parsed productId', productId);
+  console.info('[OneLink] parsed coupon', discount?.coupon);
+
+  if (!productId && !discount) {
+    logAppsFlyer('debug', 'one_link', 'ignored', { source, isDeferred, reason: 'No supported product or coupon parameter.' });
+    return;
+  }
+
+  const payload: OneLinkPayload = { productId, ...discount, isDeferred };
+  logAppsFlyer('info', 'one_link', 'resolved', { source, ...payload });
+  onOneLinkResolved?.(payload);
 }
 
 // Converts the shared ecommerce schema to AppsFlyer's recommended af_* parameters.
@@ -119,6 +139,7 @@ function registerInstallListeners() {
         callbackType: conversion.type,
         raw: conversion.data,
       });
+      if (isFirstLaunch) handleOneLinkData(conversion.data, true, 'conversion_data');
     });
     logAppsFlyer('debug', 'install_listener', 'registered');
   }
@@ -129,6 +150,35 @@ function registerInstallListeners() {
     });
     logAppsFlyer('debug', 'install_failure_listener', 'registered');
   }
+}
+
+function registerDeepLinkListener() {
+  if (removeDeepLinkListener) return;
+
+  removeDeepLinkListener = appsFlyer.onDeepLink((deepLink: UnifiedDeepLinkData) => {
+    console.info('[OneLink] AppsFlyer UDL open', deepLink);
+    console.info('[OneLink] raw AppsFlyer payload', deepLink);
+    console.info('[OneLink] AppsFlyer UDL result', {
+      status: deepLink.status,
+      deepLinkStatus: deepLink.deepLinkStatus,
+      isDeferred: deepLink.isDeferred,
+      data: deepLink.data,
+    });
+    if (deepLink.deepLinkStatus !== 'FOUND') {
+      const level: LogLevel = deepLink.deepLinkStatus === 'ERROR' ? 'error' : 'debug';
+      logAppsFlyer(level, 'one_link', 'not_resolved', {
+        callbackStatus: deepLink.status,
+        deepLinkStatus: deepLink.deepLinkStatus,
+        isDeferred: deepLink.isDeferred,
+        raw: deepLink,
+      });
+      return;
+    }
+    // This OneLink route handles an installed-app re-engagement; install attribution
+    // remains covered by the conversion-data listener above.
+    handleOneLinkData(deepLink.data, false, 'unified_deep_link');
+  });
+  logAppsFlyer('debug', 'one_link_listener', 'registered');
 }
 
 // Reads the native SDK version for diagnostics. This callback does not start tracking
@@ -195,6 +245,7 @@ export function initializeAppsFlyer() {
   initialization = (async () => {
     try {
       registerInstallListeners();
+      registerDeepLinkListener();
       registerSessionLifecycleLogging();
       logSdkVersion();
 
@@ -205,8 +256,8 @@ export function initializeAppsFlyer() {
         isDebug: true,
         // Required for install attribution and first-launch conversion callbacks above.
         onInstallConversionDataListener: true,
-        // OneLink/deep-link callbacks are intentionally deferred to a later integration phase.
-        onDeepLinkListener: false,
+        // Receive direct and deferred OneLink payloads before starting the SDK.
+        onDeepLinkListener: true,
         // iOS launch transmission waits while the user responds to Apple's ATT prompt.
         timeToWaitForATTUserAuthorization: ATT_WAIT_SECONDS,
         // Manual start separates initialization from the launch/install request in logs.
@@ -257,7 +308,8 @@ export function initializeAppsFlyer() {
   return initialization;
 }
 
-export function startAppsFlyerIntegration() {
+export function startAppsFlyerIntegration(onDeepLink?: (payload: OneLinkPayload) => void) {
+  onOneLinkResolved = onDeepLink;
   logAppsFlyer('info', 'integration', 'starting');
 
   if (!unsubscribeFromDataLayer) {

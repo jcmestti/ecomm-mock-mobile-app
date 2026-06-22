@@ -12,17 +12,24 @@ import { RootStackParamList } from '../types/navigation';
 type Props = NativeStackScreenProps<RootStackParamList, 'Checkout'>;
 
 export function CheckoutScreen({ navigation }: Props) {
-  const { items, subtotal, clearCart } = useCart();
+  const { items, subtotal, clearCart, discount } = useCart();
   const [email, setEmail] = useState('alex@example.com');
   const [address, setAddress] = useState('125 Market Street');
   const [shipping, setShipping] = useState<'standard' | 'express'>('standard');
-  const analyticsItems = items.map(({ product, quantity }) => toAnalyticsItem(product, quantity));
+  const discountAmount = Number((subtotal * (discount?.discountPercent ?? 0) / 100).toFixed(2));
+  const discountedSubtotal = Number((subtotal - discountAmount).toFixed(2));
+  const analyticsItems = items.map(({ product, quantity }) => ({
+    ...toAnalyticsItem(product, quantity),
+    coupon: discount?.coupon,
+    discount: discount ? Number((product.price * discount.discountPercent / 100).toFixed(2)) : undefined,
+    price: discount ? Number((product.price * (1 - discount.discountPercent / 100)).toFixed(2)) : product.price,
+  }));
   const shippingCost = shipping === 'express' ? 12 : 0;
-  const total = subtotal + shippingCost;
+  const total = discountedSubtotal + shippingCost;
   useScreenTracking('Checkout', 'checkout', '/checkout');
   useFocusEffect(useCallback(() => {
-    analytics.push({ event: 'begin_checkout', currency: 'USD', value: ecommerceValue(analyticsItems), coupon: '', items: analyticsItems });
-  }, []));
+    analytics.push({ event: 'begin_checkout', currency: 'USD', value: ecommerceValue(analyticsItems), coupon: discount?.coupon, items: analyticsItems });
+  }, [analyticsItems, discount?.coupon]));
 
   const placeOrder = () => {
     const transactionId = `NS-${Date.now().toString().slice(-8)}`;
@@ -30,7 +37,7 @@ export function CheckoutScreen({ navigation }: Props) {
     analytics.push({ event: 'add_payment_info', currency: 'USD', value: total, payment_type: 'mock_card', items: analyticsItems });
     analytics.push({
       event: 'purchase', transaction_id: transactionId, affiliation: 'Northstar Mock Store',
-      currency: 'USD', value: total, tax: 0, shipping: shippingCost, coupon: '', items: analyticsItems,
+      currency: 'USD', value: total, tax: 0, shipping: shippingCost, coupon: discount?.coupon, items: analyticsItems,
     });
     clearCart();
     navigation.replace('Confirmation', { transactionId });
@@ -59,6 +66,7 @@ export function CheckoutScreen({ navigation }: Props) {
 
       <View style={styles.summary}>
         <PriceRow label="Subtotal" value={`$${subtotal.toFixed(2)}`} />
+        {discount && <PriceRow label={`${discount.coupon} (${discount.discountPercent}% off)`} value={`-$${discountAmount.toFixed(2)}`} />}
         <PriceRow label="Shipping" value={shippingCost ? `$${shippingCost.toFixed(2)}` : 'Free'} />
         <View style={styles.rule} />
         <PriceRow label="Total" value={`$${total.toFixed(2)}`} strong />

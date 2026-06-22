@@ -54,4 +54,14 @@ AppsFlyer contains native code and is not available in Expo Go. Build a developm
 npx expo run:android
 npx expo run:ios
 ```
+
+### OneLink deep linking
+
+The app accepts OneLink URLs using the `d2Wm` template, for example `https://myecomm.onelink.me/d2Wm/l4j2cdg7`.
+
+- `deep_link_value` may contain any product ID (for example `NS-1001`) and opens that product detail screen.
+- `deep_link_sub1` accepts `1OFF`, `10OFF`, or a multiple of ten through `90OFF`, case-insensitively. The matching percentage is applied to the cart subtotal in checkout and sent with checkout/purchase analytics.
+- Direct and deferred deep-link callbacks are handled by the AppsFlyer SDK. Deferred links preserve the product/coupon payload through the install flow and apply it when the app first opens.
+
+Before testing, configure the `d2Wm` template in the AppsFlyer dashboard with the Android and iOS store destinations for `com.northstar.mockstore`, and define the `deep_link_value` and `deep_link_sub1` parameters on the link. Build and install a new development client after changing the native link declarations.
 # ecomm-mock-mobile-app

@@ -2,6 +2,7 @@ import { createContext, ReactNode, useContext, useMemo, useState } from 'react';
 import { Product } from '../data/products';
 
 export type CartItem = { product: Product; quantity: number };
+export type CartDiscount = { coupon: string; discountPercent: number };
 
 type CartContextValue = {
   items: CartItem[];
@@ -9,6 +10,8 @@ type CartContextValue = {
   removeItem: (productId: string) => void;
   setQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
+  discount?: CartDiscount;
+  applyDiscount: (discount: CartDiscount) => void;
   totalQuantity: number;
   subtotal: number;
 };
@@ -17,6 +20,7 @@ const CartContext = createContext<CartContextValue | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [discount, setDiscount] = useState<CartDiscount>();
 
   const value = useMemo<CartContextValue>(() => ({
     items,
@@ -31,9 +35,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       ? current.filter((item) => item.product.id !== productId)
       : current.map((item) => item.product.id === productId ? { ...item, quantity } : item)),
     clearCart: () => setItems([]),
+    discount,
+    applyDiscount: setDiscount,
     totalQuantity: items.reduce((sum, item) => sum + item.quantity, 0),
     subtotal: items.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
-  }), [items]);
+  }), [discount, items]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

@@ -9,10 +9,19 @@
     "scheme": "northstar",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.northstar.mockstore"
+      "bundleIdentifier": "com.northstar.mockstore",
+      "associatedDomains": ["applinks:myecomm.onelink.me"]
     },
     "android": {
       "package": "com.northstar.mockstore",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "https", "host": "myecomm.onelink.me" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
